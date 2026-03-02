@@ -5,18 +5,38 @@ function toggleCalculationMode() {
     const initialCapitalGroup = document.getElementById('initialCapitalGroup');
     const targetAmountGroup = document.getElementById('targetAmountGroup');
     const reverseTypeGroup = document.getElementById('reverseTypeGroup');
+    const optionsInputs = document.getElementById('optionsInputs');
     const calculateBtn = document.getElementById('calculateBtn');
+
+    // Hide all mode-specific inputs first
+    initialCapitalGroup.style.display = 'none';
+    targetAmountGroup.style.display = 'none';
+    reverseTypeGroup.style.display = 'none';
+    optionsInputs.style.display = 'none';
+
+    // Hide trading-specific inputs for options mode
+    const tradingInputs = ['avgReward', 'tradeFrequency', 'timePeriod', 'durationGroup', 'volatility', 'compounding'];
+    tradingInputs.forEach(id => {
+        const element = document.getElementById(id) || document.getElementById(id + 'Group');
+        if (element) {
+            const inputGroup = element.closest('.input-group');
+            if (inputGroup) {
+                inputGroup.style.display = mode === 'options' ? 'none' : 'block';
+            }
+        }
+    });
 
     if (mode === 'forward') {
         initialCapitalGroup.style.display = 'block';
-        targetAmountGroup.style.display = 'none';
-        reverseTypeGroup.style.display = 'none';
         calculateBtn.textContent = 'Calculate Trajectory';
-    } else {
+    } else if (mode === 'reverse') {
         targetAmountGroup.style.display = 'block';
         reverseTypeGroup.style.display = 'block';
         calculateBtn.textContent = 'Find Requirements';
         toggleReverseType();
+    } else if (mode === 'options') {
+        optionsInputs.style.display = 'block';
+        calculateBtn.textContent = 'Calculate Options Strategy';
     }
 
     calculate();
@@ -49,7 +69,7 @@ function calculate() {
 
     if (mode === 'forward') {
         calculateTrajectory();
-    } else {
+    } else if (mode === 'reverse') {
         const reverseType = document.getElementById('reverseType').value;
 
         if (reverseType === 'initial') {
@@ -59,6 +79,8 @@ function calculate() {
         } else { // both
             calculateBothScenarios();
         }
+    } else if (mode === 'options') {
+        calculateOptionsStrategy();
     }
 }
 
@@ -786,6 +808,384 @@ function formatCurrencyShort(amount) {
 
 function formatPercentage(percent) {
     return (percent >= 0 ? '+' : '') + percent.toFixed(2) + '%';
+}
+
+// Options Trading Functions
+function calculateOptionsStrategy() {
+    const optionType = document.getElementById('optionType').value;
+    const currentPrice = parseFloat(document.getElementById('currentPrice').value);
+    const targetReturn = parseFloat(document.getElementById('targetReturn').value) / 100;
+    const investmentAmount = parseFloat(document.getElementById('investmentAmount').value);
+    const strikePrice = parseFloat(document.getElementById('strikePrice').value);
+    const optionPremium = parseFloat(document.getElementById('optionPremium').value);
+    const daysToExpiry = parseInt(document.getElementById('daysToExpiry').value);
+    const calculationType = document.getElementById('calculationType').value;
+
+    if (currentPrice <= 0 || investmentAmount <= 0 || optionPremium <= 0 || daysToExpiry <= 0) {
+        alert('Please enter valid positive values for all fields');
+        return;
+    }
+
+    let results;
+
+    switch (calculationType) {
+        case 'optimal_strike':
+            results = calculateOptimalStrike({
+                optionType, currentPrice, targetReturn, investmentAmount,
+                optionPremium, daysToExpiry
+            });
+            break;
+        case 'target_price':
+            results = calculateTargetPrice({
+                optionType, currentPrice, strikePrice, optionPremium,
+                investmentAmount, targetReturn
+            });
+            break;
+        case 'profit_scenarios':
+            results = calculateProfitScenarios({
+                optionType, currentPrice, strikePrice, optionPremium,
+                investmentAmount, daysToExpiry
+            });
+            break;
+        case 'risk_reward':
+            results = calculateRiskReward({
+                optionType, currentPrice, strikePrice, optionPremium,
+                investmentAmount, daysToExpiry
+            });
+            break;
+    }
+
+    updateOptionsResults(results);
+    updateOptionsChart(results);
+    document.getElementById('results').style.display = 'block';
+}
+
+function calculateOptimalStrike(params) {
+    const { optionType, currentPrice, targetReturn, investmentAmount, optionPremium, daysToExpiry } = params;
+
+    const contractsCount = Math.floor(investmentAmount / (optionPremium * 100));
+    const totalPremiumPaid = contractsCount * optionPremium * 100;
+    const targetProfit = totalPremiumPaid * targetReturn;
+    const totalTargetValue = totalPremiumPaid + targetProfit;
+
+    let optimalStrike, targetStockPrice, breakEvenPrice;
+
+    if (optionType === 'call') {
+        // For calls: Profit = (Stock Price - Strike - Premium) * Contracts * 100
+        // Target Value = (Target Stock Price - Strike) * Contracts * 100
+        // Strike = Target Stock Price - (Target Value / (Contracts * 100))
+        const neededProfitPerContract = totalTargetValue / (contractsCount * 100);
+        optimalStrike = currentPrice + (optionPremium * 0.5); // Conservative estimate
+        targetStockPrice = optimalStrike + neededProfitPerContract;
+        breakEvenPrice = optimalStrike + optionPremium;
+    } else {
+        // For puts: Profit = (Strike - Stock Price - Premium) * Contracts * 100
+        const neededProfitPerContract = totalTargetValue / (contractsCount * 100);
+        optimalStrike = currentPrice - (optionPremium * 0.5); // Conservative estimate
+        targetStockPrice = optimalStrike - neededProfitPerContract;
+        breakEvenPrice = optimalStrike - optionPremium;
+    }
+
+    const maxProfit = optionType === 'call' ? 'Unlimited' : formatCurrency((optimalStrike - optionPremium) * contractsCount * 100);
+    const maxLoss = formatCurrency(totalPremiumPaid);
+
+    return {
+        calculationType: 'optimal_strike',
+        optionType,
+        contractsCount,
+        optimalStrike,
+        targetStockPrice,
+        breakEvenPrice,
+        maxProfit,
+        maxLoss,
+        totalInvestment: totalPremiumPaid,
+        targetProfit: formatCurrency(targetProfit),
+        scenarios: generatePriceScenarios(params, optimalStrike)
+    };
+}
+
+function calculateTargetPrice(params) {
+    const { optionType, currentPrice, strikePrice, optionPremium, investmentAmount, targetReturn } = params;
+
+    const contractsCount = Math.floor(investmentAmount / (optionPremium * 100));
+    const totalPremiumPaid = contractsCount * optionPremium * 100;
+    const targetProfit = totalPremiumPaid * targetReturn;
+
+    let breakEvenPrice, targetStockPrice;
+
+    if (optionType === 'call') {
+        breakEvenPrice = strikePrice + optionPremium;
+        // Target: (Stock Price - Strike - Premium) * Contracts * 100 = Target Profit
+        targetStockPrice = strikePrice + optionPremium + (targetProfit / (contractsCount * 100));
+    } else {
+        breakEvenPrice = strikePrice - optionPremium;
+        // Target: (Strike - Stock Price - Premium) * Contracts * 100 = Target Profit
+        targetStockPrice = strikePrice - optionPremium - (targetProfit / (contractsCount * 100));
+    }
+
+    const maxProfit = optionType === 'call' ? 'Unlimited' : formatCurrency((strikePrice - optionPremium) * contractsCount * 100);
+    const maxLoss = formatCurrency(totalPremiumPaid);
+
+    return {
+        calculationType: 'target_price',
+        optionType,
+        contractsCount,
+        strikePrice,
+        targetStockPrice,
+        breakEvenPrice,
+        maxProfit,
+        maxLoss,
+        totalInvestment: totalPremiumPaid,
+        targetProfit: formatCurrency(targetProfit),
+        scenarios: generatePriceScenarios(params, strikePrice)
+    };
+}
+
+function calculateProfitScenarios(params) {
+    const { optionType, currentPrice, strikePrice, optionPremium, investmentAmount } = params;
+
+    const contractsCount = Math.floor(investmentAmount / (optionPremium * 100));
+    const totalPremiumPaid = contractsCount * optionPremium * 100;
+
+    const scenarios = [];
+    const priceRange = currentPrice * 0.4; // ±40% of current price
+    const stepSize = priceRange / 20; // 20 data points
+
+    for (let i = 0; i <= 20; i++) {
+        const stockPrice = currentPrice - priceRange/2 + (i * stepSize);
+        let profit;
+
+        if (optionType === 'call') {
+            profit = Math.max(0, stockPrice - strikePrice) * contractsCount * 100 - totalPremiumPaid;
+        } else {
+            profit = Math.max(0, strikePrice - stockPrice) * contractsCount * 100 - totalPremiumPaid;
+        }
+
+        scenarios.push({
+            stockPrice: stockPrice,
+            profit: profit,
+            profitPercentage: (profit / totalPremiumPaid) * 100
+        });
+    }
+
+    const breakEvenPrice = optionType === 'call' ?
+        strikePrice + optionPremium :
+        strikePrice - optionPremium;
+
+    return {
+        calculationType: 'profit_scenarios',
+        optionType,
+        contractsCount,
+        strikePrice,
+        breakEvenPrice,
+        totalInvestment: totalPremiumPaid,
+        scenarios
+    };
+}
+
+function calculateRiskReward(params) {
+    const { optionType, currentPrice, strikePrice, optionPremium, investmentAmount } = params;
+
+    const contractsCount = Math.floor(investmentAmount / (optionPremium * 100));
+    const totalPremiumPaid = contractsCount * optionPremium * 100;
+
+    const maxLoss = totalPremiumPaid;
+    let maxProfit, riskRewardRatio;
+
+    if (optionType === 'call') {
+        maxProfit = 'Unlimited';
+        riskRewardRatio = '∞:1';
+    } else {
+        maxProfit = (strikePrice - optionPremium) * contractsCount * 100;
+        riskRewardRatio = `${(maxProfit / maxLoss).toFixed(2)}:1`;
+    }
+
+    const breakEvenPrice = optionType === 'call' ?
+        strikePrice + optionPremium :
+        strikePrice - optionPremium;
+
+    // Probability estimates (simplified)
+    const distanceToBreakeven = Math.abs(currentPrice - breakEvenPrice);
+    const priceVolatility = currentPrice * 0.02; // Assume 2% daily volatility
+    const probabilityOfProfit = Math.max(10, 90 - (distanceToBreakeven / priceVolatility) * 5);
+
+    return {
+        calculationType: 'risk_reward',
+        optionType,
+        contractsCount,
+        strikePrice,
+        breakEvenPrice,
+        maxProfit: typeof maxProfit === 'number' ? formatCurrency(maxProfit) : maxProfit,
+        maxLoss: formatCurrency(maxLoss),
+        riskRewardRatio,
+        totalInvestment: totalPremiumPaid,
+        probabilityOfProfit: Math.min(90, Math.max(10, probabilityOfProfit)),
+        scenarios: generatePriceScenarios(params, strikePrice)
+    };
+}
+
+function generatePriceScenarios(params, strike) {
+    const { currentPrice, optionPremium, investmentAmount } = params;
+    const contractsCount = Math.floor(investmentAmount / (optionPremium * 100));
+
+    const scenarios = [];
+    const prices = [
+        currentPrice * 0.8,
+        currentPrice * 0.9,
+        currentPrice,
+        currentPrice * 1.1,
+        currentPrice * 1.2
+    ];
+
+    prices.forEach(price => {
+        scenarios.push({
+            stockPrice: price,
+            profit: calculateOptionProfit(params.optionType, price, strike, optionPremium, contractsCount)
+        });
+    });
+
+    return scenarios;
+}
+
+function calculateOptionProfit(optionType, stockPrice, strikePrice, premium, contracts) {
+    const totalPremiumPaid = contracts * premium * 100;
+    let intrinsicValue;
+
+    if (optionType === 'call') {
+        intrinsicValue = Math.max(0, stockPrice - strikePrice);
+    } else {
+        intrinsicValue = Math.max(0, strikePrice - stockPrice);
+    }
+
+    const totalValue = intrinsicValue * contracts * 100;
+    return totalValue - totalPremiumPaid;
+}
+
+function updateOptionsResults(results) {
+    // Hide all standard trading results
+    hideAllStandardResults();
+
+    // Show relevant options results based on calculation type
+    const { calculationType } = results;
+
+    if (calculationType === 'optimal_strike') {
+        document.getElementById('optimalStrikeStat').style.display = 'flex';
+        document.getElementById('optimalStrike').textContent = '$' + results.optimalStrike.toFixed(2);
+
+        document.getElementById('targetPriceStat').style.display = 'flex';
+        document.getElementById('targetStockPrice').textContent = '$' + results.targetStockPrice.toFixed(2);
+    }
+
+    if (results.contractsCount) {
+        document.getElementById('contractsStat').style.display = 'flex';
+        document.getElementById('contractsCount').textContent = results.contractsCount.toLocaleString();
+    }
+
+    if (results.breakEvenPrice) {
+        document.getElementById('breakEvenStat').style.display = 'flex';
+        document.getElementById('breakEvenPrice').textContent = '$' + results.breakEvenPrice.toFixed(2);
+    }
+
+    if (results.maxProfit) {
+        document.getElementById('maxProfitStat').style.display = 'flex';
+        document.getElementById('maxProfit').textContent = results.maxProfit;
+    }
+
+    if (results.maxLoss) {
+        document.getElementById('maxLossStat').style.display = 'flex';
+        document.getElementById('maxLoss').textContent = results.maxLoss;
+    }
+
+    if (results.riskRewardRatio) {
+        document.getElementById('riskRewardStat').style.display = 'flex';
+        document.getElementById('riskReward').textContent = results.riskRewardRatio;
+    }
+
+    // Generate analysis
+    let analysis = '';
+    if (calculationType === 'optimal_strike') {
+        analysis = `To achieve your target return, buy ${results.contractsCount} contracts at $${results.optimalStrike.toFixed(2)} strike. Stock needs to reach $${results.targetStockPrice.toFixed(2)} by expiry.`;
+    } else if (calculationType === 'target_price') {
+        analysis = `With current parameters, you need the stock to reach $${results.targetStockPrice.toFixed(2)} to hit your target return of ${results.targetProfit}.`;
+    } else if (calculationType === 'risk_reward') {
+        analysis = `Max risk: ${results.maxLoss}, Max reward: ${results.maxProfit}. Est. ${results.probabilityOfProfit.toFixed(0)}% chance of profit.`;
+    }
+
+    document.getElementById('optionsAnalysisStat').style.display = 'flex';
+    document.getElementById('optionsAnalysis').textContent = analysis;
+}
+
+function updateOptionsChart(results) {
+    const ctx = document.getElementById('trajectoryChart').getContext('2d');
+
+    if (!results.scenarios || results.scenarios.length === 0) {
+        return;
+    }
+
+    const data = {
+        labels: results.scenarios.map(s => '$' + s.stockPrice.toFixed(2)),
+        datasets: [{
+            label: 'Profit/Loss',
+            data: results.scenarios.map(s => s.profit),
+            borderColor: '#e74c3c',
+            backgroundColor: results.scenarios.map(s => s.profit >= 0 ? 'rgba(39, 174, 96, 0.3)' : 'rgba(231, 76, 60, 0.3)'),
+            borderWidth: 2,
+            fill: true,
+            pointBackgroundColor: results.scenarios.map(s => s.profit >= 0 ? '#27ae60' : '#e74c3c'),
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 6
+        }]
+    };
+
+    const config = {
+        type: 'line',
+        data: data,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: `Options Profit/Loss Chart - ${results.optionType.charAt(0).toUpperCase() + results.optionType.slice(1)} Options`,
+                    font: { size: 16, weight: 'bold' }
+                },
+                legend: { display: true, position: 'top' }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: 'Stock Price at Expiry' }
+                },
+                y: {
+                    title: { display: true, text: 'Profit/Loss ($)' },
+                    ticks: {
+                        callback: function(value) {
+                            return formatCurrencyShort(value);
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    if (chart) {
+        chart.destroy();
+    }
+
+    chart = new Chart(ctx, config);
+}
+
+function hideAllStandardResults() {
+    const standardResults = [
+        'finalNetWorthStat', 'requiredInitialStat', 'requiredTimeStat',
+        'totalReturnStat', 'annualizedReturnStat', 'totalTradesStat',
+        'recommendationStat', 'alternativesStat'
+    ];
+
+    standardResults.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.style.display = 'none';
+    });
 }
 
 // Initialize with default calculation on page load

@@ -129,6 +129,7 @@
                 <select id="calculationMode" onchange="toggleCalculationMode()">
                     <option value="forward">Forward: Calculate Final Amount</option>
                     <option value="reverse">Reverse: Find Requirements to Reach Target</option>
+                    <option value="options">Options: Calculate Perfect Contract Strategy</option>
                 </select>
             </div>
 
@@ -150,6 +151,63 @@
                 <label for="targetAmount">Target Amount ($)</label>
                 <input type="number" id="targetAmount" value="50000" min="0" step="100">
                 <div class="small-text">The final account value you want to reach</div>
+            </div>
+
+            <!-- Options Trading Inputs -->
+            <div id="optionsInputs" style="display: none;">
+                <div class="input-group">
+                    <label for="optionType">Option Type</label>
+                    <select id="optionType">
+                        <option value="call">Call Option</option>
+                        <option value="put">Put Option</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="currentPrice">Current Stock Price ($)</label>
+                    <input type="number" id="currentPrice" value="100" min="0" step="0.01">
+                    <div class="small-text">Current market price of the underlying stock</div>
+                </div>
+
+                <div class="input-group">
+                    <label for="targetReturn">Target Return (%)</label>
+                    <input type="number" id="targetReturn" value="50" min="1" step="1">
+                    <div class="small-text">Desired profit percentage on your investment</div>
+                </div>
+
+                <div class="input-group">
+                    <label for="investmentAmount">Investment Amount ($)</label>
+                    <input type="number" id="investmentAmount" value="1000" min="100" step="100">
+                    <div class="small-text">Total amount you want to invest in options</div>
+                </div>
+
+                <div class="input-group">
+                    <label for="strikePrice">Strike Price ($)</label>
+                    <input type="number" id="strikePrice" value="105" min="0" step="0.50">
+                    <div class="small-text">Option strike price (leave empty for auto-calculation)</div>
+                </div>
+
+                <div class="input-group">
+                    <label for="optionPremium">Option Premium ($)</label>
+                    <input type="number" id="optionPremium" value="2.50" min="0.01" step="0.01">
+                    <div class="small-text">Current premium per option contract</div>
+                </div>
+
+                <div class="input-group">
+                    <label for="daysToExpiry">Days to Expiry</label>
+                    <input type="number" id="daysToExpiry" value="30" min="1" step="1">
+                    <div class="small-text">Number of days until option expiration</div>
+                </div>
+
+                <div class="input-group">
+                    <label for="calculationType">Calculate</label>
+                    <select id="calculationType">
+                        <option value="optimal_strike">Optimal Strike Price for Target Return</option>
+                        <option value="target_price">Target Stock Price for Breakeven/Profit</option>
+                        <option value="profit_scenarios">Profit at Various Stock Prices</option>
+                        <option value="risk_reward">Risk/Reward Analysis</option>
+                    </select>
+                </div>
             </div>
 
             <div class="input-group">
@@ -227,6 +285,47 @@
                 <div class="stat" id="alternativesStat" style="display: none;">
                     <span class="stat-label" style="color: #8e44ad;">Alternatives:</span>
                     <span class="stat-value" id="alternatives" style="color: #8e44ad; font-size: 14px; line-height: 1.3;"></span>
+                </div>
+
+                <!-- Options Results -->
+                <div class="stat" id="optimalStrikeStat" style="display: none;">
+                    <span class="stat-label">Optimal Strike Price:</span>
+                    <span class="stat-value" id="optimalStrike">$0</span>
+                </div>
+
+                <div class="stat" id="contractsStat" style="display: none;">
+                    <span class="stat-label">Contracts to Buy:</span>
+                    <span class="stat-value" id="contractsCount">0</span>
+                </div>
+
+                <div class="stat" id="breakEvenStat" style="display: none;">
+                    <span class="stat-label">Breakeven Price:</span>
+                    <span class="stat-value" id="breakEvenPrice">$0</span>
+                </div>
+
+                <div class="stat" id="targetPriceStat" style="display: none;">
+                    <span class="stat-label">Target Stock Price:</span>
+                    <span class="stat-value" id="targetStockPrice">$0</span>
+                </div>
+
+                <div class="stat" id="maxProfitStat" style="display: none;">
+                    <span class="stat-label">Max Profit:</span>
+                    <span class="stat-value" id="maxProfit">$0</span>
+                </div>
+
+                <div class="stat" id="maxLossStat" style="display: none;">
+                    <span class="stat-label">Max Loss:</span>
+                    <span class="stat-value" id="maxLoss">$0</span>
+                </div>
+
+                <div class="stat" id="riskRewardStat" style="display: none;">
+                    <span class="stat-label">Risk/Reward Ratio:</span>
+                    <span class="stat-value" id="riskReward">0:1</span>
+                </div>
+
+                <div class="stat" id="optionsAnalysisStat" style="display: none;">
+                    <span class="stat-label" style="color: #e67e22;">Options Analysis:</span>
+                    <span class="stat-value" id="optionsAnalysis" style="color: #e67e22; font-size: 14px; line-height: 1.3;"></span>
                 </div>
             </div>
         </div>
