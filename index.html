@@ -200,11 +200,24 @@
                 </div>
 
                 <div class="input-group">
+                    <label for="impliedVolatility">Implied Volatility (%)</label>
+                    <input type="number" id="impliedVolatility" value="25" min="1" max="200" step="1">
+                    <div class="small-text">Annual implied volatility of the underlying stock</div>
+                </div>
+
+                <div class="input-group">
+                    <label for="riskFreeRate">Risk-Free Rate (%)</label>
+                    <input type="number" id="riskFreeRate" value="5" min="0" max="20" step="0.25">
+                    <div class="small-text">Current risk-free interest rate (e.g., Treasury rate)</div>
+                </div>
+
+                <div class="input-group">
                     <label for="calculationType">Calculate</label>
                     <select id="calculationType">
                         <option value="optimal_strike">Optimal Strike Price for Target Return</option>
                         <option value="target_price">Target Stock Price for Breakeven/Profit</option>
                         <option value="profit_scenarios">Profit at Various Stock Prices</option>
+                        <option value="premium_analysis">Premium Analysis at Different Prices</option>
                         <option value="risk_reward">Risk/Reward Analysis</option>
                     </select>
                 </div>
@@ -326,6 +339,32 @@
                 <div class="stat" id="optionsAnalysisStat" style="display: none;">
                     <span class="stat-label" style="color: #e67e22;">Options Analysis:</span>
                     <span class="stat-value" id="optionsAnalysis" style="color: #e67e22; font-size: 14px; line-height: 1.3;"></span>
+                </div>
+
+                <div class="stat" id="currentPremiumStat" style="display: none;">
+                    <span class="stat-label">Current Premium:</span>
+                    <span class="stat-value" id="currentPremium">$0.00</span>
+                </div>
+
+                <div class="stat" id="premiumAtTargetStat" style="display: none;">
+                    <span class="stat-label">Premium at Target Price:</span>
+                    <span class="stat-value" id="premiumAtTarget">$0.00</span>
+                </div>
+
+                <div class="stat" id="timeDecayStat" style="display: none;">
+                    <span class="stat-label">Daily Time Decay (Theta):</span>
+                    <span class="stat-value" id="timeDecay">$0.00</span>
+                </div>
+
+                <div class="stat" id="deltaStat" style="display: none;">
+                    <span class="stat-label">Delta (Price Sensitivity):</span>
+                    <span class="stat-value" id="delta">0.00</span>
+                </div>
+
+                <!-- Premium Scenarios Table -->
+                <div id="premiumScenariosTable" style="display: none; margin-top: 15px;">
+                    <div style="font-weight: 600; margin-bottom: 10px; color: #2c3e50;">Premium at Different Stock Prices:</div>
+                    <div id="premiumTableContent" style="font-size: 13px; line-height: 1.4;"></div>
                 </div>
             </div>
         </div>
